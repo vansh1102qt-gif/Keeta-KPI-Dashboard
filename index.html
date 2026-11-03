@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rider KPI Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{--bg:#f3f5f8;--panel:#fff;--line:#d5dde6;--row-line:#e6ebf1;--row-hover:#f1f5f9;--text:#152131;--dim:#4d6178;--mute:#7a8da1;--accent:#0c8a76;--accent-bg:rgba(12,138,118,.10);--accent-line:rgba(12,138,118,.45);--good:#0c8a76;--good-bg:rgba(12,138,118,.12);--warn:#a8650a;--warn-bg:rgba(224,150,43,.18);--bad:#c4304b;--bad-bg:rgba(217,80,106,.14);--mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans)}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px 16px 60px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:14px}
+  h1{font-size:22px;margin:0 0 4px}.sub{color:var(--dim);font-size:13px}
+  .datestamp{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-line);padding:6px 10px;border-radius:4px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+  button,select{background:#eaeff4;border:1px solid var(--line);color:var(--text);padding:8px 14px;border-radius:5px;font:500 12.5px var(--sans);cursor:pointer}
+  button.primary{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent);font-weight:600}
+  button:disabled{opacity:.55;cursor:default}
+  .status{font-family:var(--mono);font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--mute);display:inline-block}.dot.live{background:var(--good)}.dot.err{background:var(--bad)}
+  .kpi-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:24px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px}
+  .kpi .label{font-size:10.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+  .kpi .value{font-family:var(--mono);font-size:22px;font-weight:600}.kpi .value.warn{color:var(--warn)}.kpi .value.good{color:var(--good)}.kpi .value.bad{color:var(--bad)}
+  .kpi .foot{font-size:10.5px;color:var(--mute);margin-top:6px}
+  .section{margin-bottom:28px}.section-head{display:flex;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;align-items:center}
+  .section-head h2{font-size:14px;margin:0}.note{font-size:12px;color:var(--mute)}
+  .chart-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .chart-card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px 8px}
+  .ctitle{font-size:11.5px;color:var(--dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}.chart-box{position:relative;height:170px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-weight:600;color:var(--mute);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+  td{padding:8px 10px;border-bottom:1px solid var(--row-line);font-family:var(--mono);white-space:nowrap}
+  td.name-cell{font-family:var(--sans);font-weight:500}
+  tr.rowlink{cursor:pointer}tr.rowlink:hover td{background:var(--row-hover)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}.scrollx{overflow-x:auto}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono)}
+  .pill.good{background:var(--good-bg);color:var(--good)}.pill.warn{background:var(--warn-bg);color:var(--warn)}.pill.bad{background:var(--bad-bg);color:var(--bad)}.pill.none{color:var(--mute)}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+  input[type=text]{background:#eaeff4;border:1px solid var(--line);color:var(--text);padding:7px 10px;border-radius:4px;font-size:12.5px;min-width:220px}
+  .chip{padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid var(--line);background:#eaeff4;color:var(--dim);cursor:pointer}
+  .chip.active{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent)}
+  .chip-toggle{display:flex;gap:6px}
+  .rider-table-wrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+  .rider-table-wrap th{position:sticky;top:0;background:var(--panel);z-index:2}
+  .why{display:inline-block;margin:1px 4px 1px 0;padding:1px 7px;border-radius:20px;font-size:11px;background:var(--bad-bg);color:var(--bad);white-space:nowrap}
+  .h-good{color:var(--good)}.h-bad{color:var(--bad)}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}.two-col>div{min-width:0}
+  .list-scroll{max-height:440px;overflow:auto}.list-scroll th{position:sticky;top:0;background:var(--panel);z-index:2;cursor:default}
+  td.co{font-family:var(--sans);max-width:170px;overflow:hidden;text-overflow:ellipsis}
+  .msg{background:var(--bad-bg);border:1px solid var(--bad);border-radius:6px;padding:12px 14px;font-size:13px;margin-bottom:16px;line-height:1.6}.msg.ok{background:var(--good-bg);border-color:var(--good)}
+  .empty{background:var(--panel);border:1px dashed var(--line);border-radius:8px;padding:36px;text-align:center;color:var(--dim);line-height:1.7}
+  .empty h2{color:var(--text);margin:0 0 8px}
+  .delta{font-family:var(--mono);font-size:12px;font-weight:600}.delta.up{color:var(--good)}.delta.down{color:var(--bad)}.delta.flat{color:var(--mute)}
+  .month-bar{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:18px;flex-wrap:wrap}
+  .month-bar b{font-size:12.5px}
+  @media(max-width:1200px){.kpi-strip{grid-template-columns:repeat(4,1fr)}.chart-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+  @media(max-width:640px){.kpi-strip{grid-template-columns:repeat(2,1fr)}.chart-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div><h1>Rider KPI Dashboard</h1><div class="sub" id="subtitle">Loading…</div></div>
+    <div class="datestamp" id="dateStamp">CONNECTING</div>
+  </div>
+  <div id="msgBox"></div>
+
+  <div class="toolbar">
+    <button class="primary" id="btnReload">↻ Reload data</button>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">Connecting…</span></div>
+  </div>
+
+  <div class="empty" id="emptyState">
+    <h2 id="emptyTitle">No data yet</h2>
+    <div id="emptyText">Waiting for <code>data/latest.csv</code>…</div>
+  </div>
+
+  <div id="app" hidden>
+    <!-- Month picker -->
+    <div class="month-bar" id="monthBar" hidden>
+      <b>Period:</b>
+      <select id="monthSelect"></select>
+      <span class="note" id="monthNote"></span>
+    </div>
+
+    <div class="kpi-strip" id="kpiStrip"></div>
+
+    <div class="section">
+      <div class="section-head"><h2>Company comparison</h2><div class="note" id="supNote"></div></div>
+      <div class="chart-grid">
+        <div class="chart-card"><div class="ctitle">Riders per company</div><div class="chart-box"><canvas id="chRiders"></canvas></div></div>
+        <div class="chart-card"><div class="ctitle">Avg orders / rider</div><div class="chart-box"><canvas id="chAvgOrders"></canvas></div></div>
+        <div class="chart-card"><div class="ctitle">Acceptance rate (avg %)</div><div class="chart-box"><canvas id="chAccept"></canvas></div></div>
+        <div class="chart-card"><div class="ctitle">Utilization: orders/hr (UTR)</div><div class="chart-box"><canvas id="chUtr"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="panel"><div class="scrollx">
+        <table id="supTable">
+          <thead><tr>
+            <th data-k="incharge">Company</th><th data-k="riders">Riders</th><th data-k="orders">Total orders</th>
+            <th data-k="avgOrders">Avg orders/rider</th><th data-k="hoursVar">Hrs vs plan</th><th data-k="avp">AVP %</th>
+            <th data-k="acc">Acceptance %</th><th data-k="noshow">No-show %</th><th data-k="late">Late login %</th>
+            <th data-k="utr">UTR</th><th data-k="ontime">On-time %</th><th data-k="atRisk">At-risk riders</th>
+          </tr></thead>
+          <tbody id="supBody"></tbody>
+        </table>
+      </div></div>
+      <div class="note" style="margin-top:10px;line-height:1.7">
+        <b>At-risk rider</b> = flagged on: acceptance &lt;95%, no-show &gt;5%, late login &gt;10%, AVP &lt;90%, or UTR &lt;0.7.
+        <b>UTR</b> = delivered ÷ valid online hrs · <b>AVP</b> = attended ÷ planned · <b>No-show</b> = rostered with zero online time ·
+        <b>Late login</b> = first On-Shift slot unqualified · <b>Acceptance</b> = Accepted ÷ (Accepted + Rejected).
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="two-col">
+        <div>
+          <div class="section-head"><h2 class="h-good" id="goodTitle">Good riders</h2><div class="note">no flags · most orders first</div></div>
+          <div class="panel list-scroll"><table>
+            <thead><tr><th>Rider</th><th>Company</th><th>Orders</th><th>UTR</th><th>Acceptance</th><th>On-time</th></tr></thead>
+            <tbody id="goodBody"></tbody></table></div>
+        </div>
+        <div>
+          <div class="section-head"><h2 class="h-bad" id="badTitle">Riders at risk</h2><div class="note">most flags first</div></div>
+          <div class="panel list-scroll"><table>
+            <thead><tr><th>Rider</th><th>Company</th><th>Orders</th><th>Why flagged</th></tr></thead>
+            <tbody id="badBody"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="compareSection" hidden>
+      <div class="section-head"><h2>Change vs previous day</h2><div class="note" id="baseNote"></div></div>
+      <div class="panel"><div class="scrollx">
+        <table>
+          <thead><tr><th>Company</th><th>Riders</th><th>Orders Δ</th><th>Acceptance Δ</th><th>No-show Δ</th><th>UTR Δ</th><th>AVP Δ</th><th>Late login Δ</th><th>At-risk Δ</th></tr></thead>
+          <tbody id="cmpBody"></tbody>
+        </table>
+      </div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Rider drill-down</h2><div class="note" id="riderCount"></div></div>
+      <div class="controls">
+        <select id="fSup"><option value="">All companies</option></select>
+        <select id="fPlace"><option value="">All vehicles</option></select>
+        <input type="text" id="fSearch" placeholder="Search rider name or ID…">
+        <div class="chip-toggle">
+          <div class="chip active" data-risk="all" role="button" tabindex="0">All riders</div>
+          <div class="chip" data-risk="risk" role="button" tabindex="0">At-risk only</div>
+        </div>
+      </div>
+      <div class="rider-table-wrap"><table id="riderTable">
+        <thead><tr>
+          <th data-k="name">Name</th><th data-k="incharge">Company</th><th data-k="place">Vehicle</th><th data-k="orders">Orders</th>
+          <th data-k="avp">AVP %</th><th data-k="acc">Acceptance %</th><th data-k="noshow">No-show %</th><th data-k="late">Late login %</th><th data-k="utr">UTR</th><th data-k="ontime">On-time %</th><th data-k="risk">Flags</th>
+        </tr></thead>
+        <tbody id="riderBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const isNil=v=>v===null||v===undefined||(typeof v==='number'&&isNaN(v));
+const fmt=(n,d=0)=>isNil(n)?'–':Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct=v=>isNil(v)?'–':v+'%';
+const r2=n=>isNil(n)?null:Math.round(n*100)/100;
+const avg=a=>{const b=a.filter(x=>!isNil(x));return b.length?b.reduce((x,y)=>x+y,0)/b.length:null;};
+const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,'');
+const num=v=>{if(isNil(v)||v==='')return null;const n=typeof v==='number'?v:parseFloat(String(v).replace(/[%,\s]/g,''));return isNaN(n)?null:n;};
+const SUP_COLORS=['#2aa893','#e0962b','#4c8fe0','#d9506a','#a56fe0','#7fbf45','#e0708f','#3cbcd0','#c9ae3a'];
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+let DATA=null, DATA_PREV=null, ALL_DAYS={}, charts={};
+let supSort={k:'riders',dir:-1}, riderSort={k:'noshow',dir:-1}, riskFilter='all';
+let VIEW='latest'; // 'latest' or 'YYYY-MM'
+let AVAILABLE_MONTHS=[];
+
+// ================== parsing ==================
+function parseDur(s){if(isNil(s))return 0;s=String(s);let h=0,m;
+  if((m=s.match(/(\d+(?:\.\d+)?)\s*hr/)))h+=+m[1];
+  if((m=s.match(/(\d+(?:\.\d+)?)\s*min/)))h+=+m[1]/60;
+  if((m=s.match(/(\d+(?:\.\d+)?)\s*sec/)))h+=+m[1]/3600;return h;}
+function parseShift(str){const out={planned:0,attended:0,firstQualified:null,rostered:false};
+  if(typeof str!=='string')return out;
+  str.split('|').forEach(part=>{const bits=part.split(',');
+    const w=bits[0].trim().match(/^(\d{1,2}):\d{2}-(\d{1,2}):\d{2}$/);
+    if(!w||(bits[1]||'').trim()!=='On-Shift')return;
+    const len=(+w[2])-(+w[1]);const rest=bits.slice(2).join(',');
+    const qualified=/qualified/i.test(rest)&&!/unqualified/i.test(rest);
+    out.planned+=len;out.attended+=Math.min(len,parseDur(rest));out.rostered=true;
+    if(out.firstQualified===null)out.firstQualified=qualified;});return out;}
+function toISODate(v){if(isNil(v)||v==='')return '';const s=String(v).trim();let m;
+  if((m=s.match(/^(\d{4})(\d{2})(\d{2})$/)))return `${m[1]}-${m[2]}-${m[3]}`;
+  if((m=s.match(/^(\d{4})-(\d{2})-(\d{2})/)))return `${m[1]}-${m[2]}-${m[3]}`;
+  const n=Number(s);if(!isNaN(n)&&n>30000&&n<80000)return new Date(Math.round((n-25569)*86400000)).toISOString().slice(0,10);return '';}
+function fmtDate(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return s||'–';return new Date(s+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
+function monthLabel(m){return new Date(m+'-15T00:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'});}
+
+function exportRows(rows){
+  if(!rows||!rows.length)return null;
+  const byNorm={};Object.keys(rows[0]||{}).forEach(h=>{const n=norm(h);if(!(n in byNorm))byNorm[n]=h;});
+  if(!(byNorm['courierid']&&byNorm['taskvolumesdeliveredtasks']&&byNorm['supervisor']))return null;
+  const col=n=>byNorm[n];
+  const shiftCol=Object.keys(byNorm).find(k=>k.startsWith('shiftattendance'));
+  return rows.map(r=>{
+    const sh=parseShift(shiftCol?r[byNorm[shiftCol]]:null);
+    const onShift=String(r[col('shiftonshift')]??'').trim()==='Yes';
+    const online=parseDur(r[col('shiftvalidonlinetime')]??r[col('shiftcourierapponlinetime')]);
+    const rostered=sh.rostered||onShift;
+    const delivered=num(r[col('taskvolumesdeliveredtasks')])||0;
+    let ot=num(r[col('deliveryexperienceontimerated')]);
+    if(ot!==null&&ot>1.0001)ot=ot/100;
+    const name=[r[col('courierfirstname')],r[col('courierlastname')]].filter(x=>!isNil(x)&&x!=='').join(' ').trim();
+    const id=String(r[col('courierid')]??'').trim();
+    return {ID:id,Name:name||id,Incharge:String(r[col('supervisor')]??'').trim(),Vehicle:String(r[col('vehicletype')]??'').trim(),
+      Date:toISODate(r[col('date')]),Orders:delivered,Planned:sh.planned,Actual:online,Attended:sh.attended,
+      NoShow:rostered?(sh.attended<=0?100:0):null,
+      Late:(rostered&&sh.attended>0)?(sh.firstQualified===false?100:0):null,
+      Accepted:num(r[col('taskvolumesacceptedtasks')])||0,Rejected:num(r[col('taskvolumesrejectedtasks')])||0,
+      OTW:(ot!==null&&delivered>0)?ot*delivered:null,OTB:(ot!==null&&delivered>0)?delivered:null};
+  }).filter(x=>x.ID);
+}
+
+// ================== compute ==================
+function compute(rows){
+  const g=new Map();
+  rows.forEach(r=>{let o=g.get(r.ID);
+    if(!o){o={id:r.ID,name:r.Name,incharge:'',vehicle:'',orders:0,planned:0,actual:0,attended:0,accepted:0,rejected:0,otw:0,otb:0,ns:[],late:[]};g.set(r.ID,o);}
+    if(r.Name)o.name=r.Name;if(r.Incharge)o.incharge=r.Incharge;if(r.Vehicle)o.vehicle=r.Vehicle;
+    o.orders+=r.Orders||0;o.planned+=r.Planned||0;o.actual+=r.Actual||0;o.attended+=r.Attended||0;
+    o.accepted+=r.Accepted||0;o.rejected+=r.Rejected||0;o.otw+=r.OTW||0;o.otb+=r.OTB||0;
+    if(!isNil(r.NoShow))o.ns.push(r.NoShow);if(!isNil(r.Late))o.late.push(r.Late);});
+  const riders=[...g.values()].map(o=>{
+    const avp=o.planned>0?Math.min(100,o.attended/o.planned*100):null;
+    const acc=(o.accepted+o.rejected)>0?o.accepted/(o.accepted+o.rejected)*100:null;
+    const ontime=o.otb>0?o.otw/o.otb*100:null;
+    const noshow=avg(o.ns),late=avg(o.late);
+    const utr=o.actual>0?o.orders/o.actual:null;
+    const reasons=[];
+    if(noshow!==null&&noshow>5)reasons.push('No-show');
+    if(late!==null&&late>10)reasons.push('Late login');
+    if(acc!==null&&acc<95)reasons.push('Low acceptance');
+    if(avp!==null&&avp<90)reasons.push('Low AVP');
+    if(utr!==null&&utr<0.7)reasons.push('Low UTR');
+    return {id:o.id,key:o.id,name:o.name,incharge:o.incharge||'Unassigned',place:o.vehicle||'–',orders:o.orders,planned:o.planned,actual:o.actual,
+      avp:r2(avp),noshow:r2(noshow),late:r2(late),acc:r2(acc),utr:r2(utr),ontime:r2(ontime),risk:reasons.length,reasons};});
+  const sg={};riders.forEach(r=>{(sg[r.incharge]||(sg[r.incharge]=[])).push(r);});
+  const sups=Object.entries(sg).map(([incharge,rs])=>{
+    const orders=rs.reduce((a,r)=>a+r.orders,0);
+    const ro=rs.filter(r=>r.planned>0);
+    const plan=ro.reduce((a,r)=>a+r.planned,0),act=ro.reduce((a,r)=>a+r.actual,0);
+    const actAll=rs.reduce((a,r)=>a+r.actual,0);
+    const m=k=>r2(avg(rs.map(r=>r[k])));
+    return {incharge,riders:rs.length,orders:r2(orders),avgOrders:r2(orders/rs.length),hoursVar:plan>0?r2((act-plan)/plan*100):null,
+      avp:m('avp'),late:m('late'),noshow:m('noshow'),acc:m('acc'),ontime:m('ontime'),utr:actAll>0?r2(orders/actAll):null,
+      atRisk:rs.filter(r=>r.risk>0).length};});
+  const totOrders=riders.reduce((a,r)=>a+r.orders,0),totActual=riders.reduce((a,r)=>a+r.actual,0);
+  const days=new Set(rows.map(r=>r.Date).filter(Boolean)).size||1;
+  const m=k=>r2(avg(riders.map(r=>r[k])));
+  return {riders,sups,overall:{riders:riders.length,orders:Math.round(totOrders),perDay:Math.round(totOrders/days),days,
+    utr:totActual>0?r2(totOrders/totActual):null,acc:m('acc'),noshow:m('noshow'),atRisk:riders.filter(r=>r.risk>0).length,sups:sups.length}};
+}
+
+// ================== fetching ==================
+function setStatus(t,c){$('statusText').textContent=t;$('dot').className='dot '+(c||'');}
+function showMsg(h,ok){$('msgBox').innerHTML=h?`<div class="msg ${ok?'ok':''}">${h}</div>`:'';}
+
+async function fetchCsvRows(url){
+  const r=await fetch(url,{cache:'no-store'});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const text=await r.text();
+  const wb=XLSX.read(text,{type:'string'});
+  const sh=wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sh,{defval:null,raw:true});
+}
+
+// Guess previous day for the delta table
+async function tryLoadPrevious(latestISO){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(latestISO)) return null;
+  const d=new Date(latestISO+'T00:00:00');
+  for(let i=1;i<=7;i++){
+    d.setDate(d.getDate()-1);
+    const iso=d.toISOString().slice(0,10);
+    try{const rows=await fetchCsvRows(`data/history/${iso}.csv`);
+      if(rows&&rows.length)return{date:iso,rows};}catch(e){}
+  }
+  return null;
+}
+
+// Try loading a month's worth of history files.
+// Needs data/history/index.json = ["2026-11-01","2026-11-02",...]
+async function loadHistoryIndex(){
+  try{
+    const r=await fetch('data/history/index.json',{cache:'no-store'});
+    if(!r.ok)return [];
+    const j=await r.json();
+    return (Array.isArray(j)?j:[]).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  }catch(e){return [];}
+}
+
+async function loadLatest(){
+  setStatus('Loading latest.csv…','');
+  showMsg('');
+  try{
+    const rows=await fetchCsvRows('data/latest.csv');
+    const er=exportRows(rows);
+    if(!er||!er.length)throw new Error('data/latest.csv is not a courier export.');
+    const dates=[...new Set(er.map(r=>r.Date).filter(Boolean))].sort();
+    const latest=dates[dates.length-1]||'';
+    DATA=compute(er);DATA.dates=dates;
+    // load previous day for delta
+    setStatus('Loading previous day…','');
+    DATA_PREV=null;
+    const prev=await tryLoadPrevious(latest);
+    if(prev){const p=exportRows(prev.rows);if(p&&p.length)DATA_PREV={date:prev.date,...compute(p)};}
+
+    // load history index for month picker
+    const hist=await loadHistoryIndex();
+    ALL_DAYS={};AVAILABLE_MONTHS=[];
+    if(hist.length){
+      const monthSet=new Set(hist.map(d=>d.slice(0,7)));
+      AVAILABLE_MONTHS=[...monthSet].sort().reverse();
+    }
+
+    setStatus('Live · '+new Date().toLocaleTimeString(),'live');
+    VIEW='latest';
+    $('emptyState').hidden=true;$('app').hidden=false;
+    render();
+  }catch(e){
+    console.error(e);
+    setStatus('Could not load','err');
+    $('app').hidden=true;$('emptyState').hidden=false;
+    $('emptyTitle').textContent='Could not load data/latest.csv';
+    $('emptyText').innerHTML=`<b>${esc(e.message||e)}</b><br><br>Check that <code>data/latest.csv</code> exists in your repo.`;
+  }
+}
+
+async function loadMonth(ym){
+  setStatus('Loading '+ym+'…','');
+  showMsg('');
+  try{
+    const hist=await loadHistoryIndex();
+    const daysInMonth=hist.filter(d=>d.startsWith(ym));
+    if(!daysInMonth.length)throw new Error('No history files for '+ym);
+    const all=[];
+    for(const d of daysInMonth){
+      try{const rows=await fetchCsvRows(`data/history/${d}.csv`);
+        const er=exportRows(rows);if(er)all.push(...er);}catch(e){console.warn('skip',d,e);}
+    }
+    if(!all.length)throw new Error('History files exist but none parsed.');
+    DATA=compute(all);DATA.dates=[...new Set(all.map(r=>r.Date))].sort();
+    DATA_PREV=null;
+    VIEW=ym;
+    setStatus('Showing '+monthLabel(ym),'live');
+    $('emptyState').hidden=true;$('app').hidden=false;
+    render();
+  }catch(e){
+    setStatus('Month load failed','err');
+    showMsg('⚠️ '+esc(e.message||e));
+  }
+}
+
+// ================== rendering ==================
+function render(){
+  const o=DATA.overall;
+  $('dateStamp').textContent='DATA '+(DATA.dates.length?DATA.dates.map(fmtDate).join(' → '):'–').toUpperCase();
+  $('subtitle').textContent=`${fmt(o.riders)} riders · ${o.sups} companies · ${o.days} day${o.days>1?'s':''}`;
+  $('supNote').textContent=`${o.sups} companies · click a row to filter the rider table below`;
+
+  // Month picker
+  const mb=$('monthBar'),ms=$('monthSelect');
+  if(AVAILABLE_MONTHS.length){
+    mb.hidden=false;
+    const cur=VIEW==='latest'?'latest':VIEW;
+    ms.innerHTML='<option value="latest">Latest (today)</option>'+AVAILABLE_MONTHS.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+    ms.value=cur;
+    $('monthNote').textContent = VIEW==='latest' ? 'Daily view' : monthLabel(VIEW)+' combined';
+  } else { mb.hidden=true; }
+
+  const kpis=[
+    {label:'Total riders',value:fmt(o.riders),foot:'unique riders'},
+    {label:'Total orders',value:fmt(o.orders),foot:o.days>1?`over ${o.days} days`:'delivered tasks'},
+    {label:'Avg orders / day',value:fmt(o.perDay),foot:'total ÷ days'},
+    {label:'Avg utilization (UTR)',value:isNil(o.utr)?'–':o.utr,foot:'orders per online hour',cls:isNil(o.utr)?'':(o.utr>=1?'good':'warn')},
+    {label:'Avg acceptance rate',value:pct(o.acc),foot:'rider average',cls:isNil(o.acc)?'':(o.acc>=98?'good':(o.acc>=95?'warn':'bad'))},
+    {label:'Avg no-show rate',value:pct(o.noshow),foot:'of rostered rider-days',cls:isNil(o.noshow)?'':(o.noshow<=1?'good':(o.noshow<=3?'warn':'bad'))},
+    {label:'At-risk riders',value:fmt(o.atRisk),foot:`${(100*o.atRisk/o.riders).toFixed(1)}% of fleet`,cls:'warn'}
+  ];
+  $('kpiStrip').innerHTML=kpis.map(k=>`<div class="kpi"><div class="label">${k.label}</div><div class="value ${k.cls||''}">${k.value}</div><div class="foot">${k.foot}</div></div>`).join('');
+  renderCharts();renderSupTable();renderLists();renderCompare();populateFilters();applyFilters();
+}
+
+function renderLists(){
+  const good=DATA.riders.filter(r=>r.risk===0&&r.orders>0).sort((a,b)=>b.orders-a.orders||(b.utr??0)-(a.utr??0));
+  const bad=DATA.riders.filter(r=>r.risk>0).sort((a,b)=>b.risk-a.risk||a.orders-b.orders);
+  $('goodTitle').textContent=`Good riders (${good.length})`;
+  $('badTitle').textContent=`Riders at risk (${bad.length})`;
+  const none=n=>`<tr><td colspan="${n}" style="color:var(--mute);font-family:var(--sans)">None</td></tr>`;
+  $('goodBody').innerHTML=good.length?good.slice(0,200).map(r=>`<tr><td class="name-cell">${esc(r.name)}</td><td class="co" title="${esc(r.incharge)}">${esc(r.incharge)}</td><td>${fmt(r.orders)}</td>
+    <td><span class="pill ${pillClass('utr',r.utr)}">${isNil(r.utr)?'–':fmt(r.utr,2)}</span></td><td>${isNil(r.acc)?'–':fmt(r.acc,1)+'%'}</td><td>${isNil(r.ontime)?'–':fmt(r.ontime,1)+'%'}</td></tr>`).join(''):none(6);
+  $('badBody').innerHTML=bad.length?bad.slice(0,200).map(r=>`<tr><td class="name-cell">${esc(r.name)}</td><td class="co" title="${esc(r.incharge)}">${esc(r.incharge)}</td><td>${fmt(r.orders)}</td>
+    <td style="white-space:normal;min-width:170px">${r.reasons.map(x=>`<span class="why">${x}</span>`).join('')}</td></tr>`).join(''):none(4);
+}
+
+function renderCharts(){
+  if(!DATA||typeof Chart==='undefined')return;
+  const sups=DATA.sups.slice().sort((a,b)=>b.riders-a.riders);
+  const labels=sups.map(s=>s.incharge),colors=labels.map((_,i)=>SUP_COLORS[i%SUP_COLORS.length]);
+  const tick=cssv('--mute')||'#7a8da1',grid=cssv('--row-line')||'#e6ebf1';
+  const short=function(v){const l=String(this.getLabelForValue(v));return l.length>13?l.slice(0,12)+'…':l;};
+  [['chRiders','riders',false],['chAvgOrders','avgOrders',false],['chAccept','acc',true],['chUtr','utr',false]].forEach(([id,k,narrow])=>{
+    if(charts[id])charts[id].destroy();
+    const vals=sups.map(s=>s[k]);
+    const y={ticks:{color:tick,font:{size:10}},grid:{color:grid},beginAtZero:true};
+    if(narrow){const lo=Math.min(...vals.filter(v=>!isNil(v)));y.beginAtZero=false;y.min=(isFinite(lo)&&lo<90)?Math.floor(lo/5)*5:90;y.max=100;}
+    charts[id]=new Chart($(id),{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:colors,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},
+      plugins:{legend:{display:false}},scales:{x:{ticks:{color:tick,font:{size:10},callback:short},grid:{color:grid}},y}}});
+  });
+}
+
+function pillClass(metric,val){
+  if(isNil(val))return 'none';
+  if(metric==='acc')return val>=98?'good':(val>=95?'warn':'bad');
+  if(metric==='noshow')return val<=1?'good':(val<=3?'warn':'bad');
+  if(metric==='avp')return val>=97?'good':(val>=90?'warn':'bad');
+  if(metric==='late')return val<=1?'good':(val<=5?'warn':'bad');
+  if(metric==='utr')return val>=1?'good':(val>=0.8?'warn':'bad');
+  if(metric==='ontime')return val>=90?'good':(val>=80?'warn':'bad');
+  if(metric==='risk')return val<=0.08?'good':(val<=0.2?'warn':'bad');
+  return '';
+}
+
+function renderSupTable(){
+  const rows=DATA.sups.slice().sort((a,b)=>{const k=supSort.k;return typeof a[k]==='string'?supSort.dir*a[k].localeCompare(b[k]):supSort.dir*((a[k]??-1e9)-(b[k]??-1e9));});
+  $('supBody').innerHTML=rows.map(s=>{
+    const rr=s.atRisk/s.riders;
+    return `<tr class="rowlink" data-sup="${esc(s.incharge)}">
+      <td class="name-cell">${esc(s.incharge)}</td><td>${fmt(s.riders)}</td><td>${fmt(s.orders)}</td><td>${fmt(s.avgOrders,1)}</td>
+      <td>${isNil(s.hoursVar)?'–':(s.hoursVar>0?'+':'')+s.hoursVar+'%'}</td>
+      <td><span class="pill ${pillClass('avp',s.avp)}">${pct(s.avp)}</span></td>
+      <td><span class="pill ${pillClass('acc',s.acc)}">${pct(s.acc)}</span></td>
+      <td><span class="pill ${pillClass('noshow',s.noshow)}">${pct(s.noshow)}</span></td>
+      <td><span class="pill ${pillClass('late',s.late)}">${pct(s.late)}</span></td>
+      <td><span class="pill ${pillClass('utr',s.utr)}">${isNil(s.utr)?'–':s.utr}</span></td>
+      <td><span class="pill ${pillClass('ontime',s.ontime)}">${pct(s.ontime)}</span></td>
+      <td><span class="pill ${pillClass('risk',rr)}">${s.atRisk} (${(rr*100).toFixed(0)}%)</span></td></tr>`;
+  }).join('');
+  document.querySelectorAll('#supBody tr').forEach(r=>r.onclick=()=>{
+    $('fSup').value=r.dataset.sup;applyFilters();
+    window.scrollTo({top:$('riderTable').getBoundingClientRect().top+window.scrollY-80,behavior:'smooth'});
+  });
+}
+
+const dif=(a,b)=>(isNil(a)||isNil(b))?null:a-b;
+function dCell(v,invert,d=2,suffix=''){
+  if(isNil(v))return '<td>–</td>';
+  const cls=v===0?'flat':((invert?v<0:v>0)?'up':'down');
+  return `<td><span class="delta ${cls}">${v>0?'+':''}${v.toFixed(d)}${suffix}</span></td>`;
+}
+function renderCompare(){
+  const prev=DATA_PREV;
+  $('compareSection').hidden=!prev;
+  if(!prev)return;
+  $('baseNote').textContent='compared with '+fmtDate(prev.date);
+  const pm=Object.fromEntries(prev.sups.map(s=>[s.incharge,s]));
+  $('cmpBody').innerHTML=DATA.sups.slice().sort((a,b)=>b.riders-a.riders).map(s=>{
+    const b=pm[s.incharge];
+    if(!b)return `<tr><td class="name-cell">${esc(s.incharge)}</td><td colspan="8" style="color:var(--mute)">new company (not in previous day)</td></tr>`;
+    const dr=s.riders-b.riders;
+    return `<tr><td class="name-cell">${esc(s.incharge)}</td><td>${s.riders} <span style="color:var(--mute)">(${dr>=0?'+':''}${dr})</span></td>
+      ${dCell(s.orders-b.orders,false,0)}${dCell(dif(s.acc,b.acc),false,2,'%')}${dCell(dif(s.noshow,b.noshow),true,2,'%')}${dCell(dif(s.utr,b.utr),false)}${dCell(dif(s.avp,b.avp),false,2,'%')}${dCell(dif(s.late,b.late),true,2,'%')}${dCell(s.atRisk-b.atRisk,true,0)}</tr>`;
+  }).join('');
+}
+
+function populateFilters(){
+  const keep=(sel,vals,allLabel)=>{
+    const cur=sel.value||'';
+    sel.innerHTML=`<option value="">${allLabel}</option>`+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if(vals.includes(cur))sel.value=cur;
+  };
+  keep($('fSup'),[...new Set(DATA.riders.map(r=>r.incharge))].sort(),'All companies');
+  keep($('fPlace'),[...new Set(DATA.riders.map(r=>r.place))].sort(),'All vehicles');
+}
+function applyFilters(){
+  if(!DATA)return;
+  let rows=DATA.riders;
+  const sup=$('fSup').value,place=$('fPlace').value,q=$('fSearch').value.trim().toLowerCase();
+  if(sup)rows=rows.filter(r=>r.incharge===sup);
+  if(place)rows=rows.filter(r=>r.place===place);
+  if(q)rows=rows.filter(r=>(r.name||'').toLowerCase().includes(q)||String(r.id??'').includes(q));
+  if(riskFilter==='risk')rows=rows.filter(r=>r.risk>0);
+  rows=rows.slice().sort((a,b)=>{const k=riderSort.k;return typeof a[k]==='string'?riderSort.dir*a[k].localeCompare(b[k]):riderSort.dir*((a[k]??-1e9)-(b[k]??-1e9));});
+  $('riderCount').textContent=`${rows.length.toLocaleString()} riders shown`;
+  $('riderBody').innerHTML=rows.slice(0,500).map(r=>`<tr>
+    <td class="name-cell">${esc(r.name)}</td><td class="name-cell">${esc(r.incharge)}</td><td>${esc(r.place)}</td><td>${fmt(r.orders,0)}</td>
+    <td><span class="pill ${pillClass('avp',r.avp)}">${isNil(r.avp)?'–':fmt(r.avp,1)+'%'}</span></td>
+    <td><span class="pill ${pillClass('acc',r.acc)}">${isNil(r.acc)?'–':fmt(r.acc,1)+'%'}</span></td>
+    <td><span class="pill ${pillClass('noshow',r.noshow)}">${isNil(r.noshow)?'–':fmt(r.noshow,1)+'%'}</span></td>
+    <td><span class="pill ${pillClass('late',r.late)}">${isNil(r.late)?'–':fmt(r.late,1)+'%'}</span></td>
+    <td>${isNil(r.utr)?'–':fmt(r.utr,2)}</td>
+    <td><span class="pill ${pillClass('ontime',r.ontime)}">${isNil(r.ontime)?'–':fmt(r.ontime,1)+'%'}</span></td>
+    <td style="font-family:var(--sans)">${r.reasons.length?r.reasons.map(x=>`<span class="why">${x}</span>`).join(''):'<span style="color:var(--mute)">–</span>'}</td></tr>`).join('');
+}
+
+// ================== events ==================
+$('btnReload').onclick=()=>{ if(VIEW==='latest')loadLatest(); else loadMonth(VIEW); };
+$('monthSelect').onchange=e=>{ const v=e.target.value; if(v==='latest')loadLatest(); else loadMonth(v); };
+document.querySelectorAll('#supTable th[data-k]').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k;supSort.dir=supSort.k===k?-supSort.dir:-1;supSort.k=k;renderSupTable();
+});
+document.querySelectorAll('#riderTable th[data-k]').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k;riderSort.dir=riderSort.k===k?-riderSort.dir:-1;riderSort.k=k;applyFilters();
+});
+document.querySelectorAll('.chip').forEach(c=>{
+  const go=()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));c.classList.add('active');riskFilter=c.dataset.risk;applyFilters();};
+  c.onclick=go;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};
+});
+$('fSup').onchange=applyFilters;$('fPlace').onchange=applyFilters;$('fSearch').oninput=applyFilters;
+
+// start
+loadLatest();
+</script>
+</body>
+</html>
